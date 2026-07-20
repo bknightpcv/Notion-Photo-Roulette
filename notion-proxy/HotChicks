@@ -25,7 +25,7 @@
 
     <script>
         // Change the tag at the end of this URL to pull different categories
-        const API_ENDPOINT = "/api/photos?tag=Inspirational+Quotes"; 
+        const API_ENDPOINT = "/api/photos?tag=Hot+Chicks"; 
 
         async function loadImg() {
             try {
