@@ -1,79 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { 
-            width: 100%; height: 100%; overflow: hidden; 
-            background-color: #f5f5f5; display: flex; 
-            justify-content: center; align-items: center;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-        #status-box {
-            padding: 20px; background: white; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
-            max-width: 80%; color: #333; font-size: 14px;
-        }
-        img { 
-            max-width: 100%; max-height: 100%; object-fit: cover; 
-            border-radius: 8px; display: none; /* Hidden until loaded */
-        }
-    </style>
-</head>
-<body>
-    
-    <div id="status-box">⏳ 1. Connecting to Vercel API...</div>
-    <img id="random-image" alt="">
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    <script>
-        const API_ENDPOINT = "/api/photos?tag=Inspirational+Quotes"; 
-        const statusBox = document.getElementById('status-box');
-        const img = document.getElementById('random-image');
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-        async function loadImg() {
-            try {
-                statusBox.innerHTML = "⏳ 2. Fetching photos from Notion API...";
-                const res = await fetch(API_ENDPOINT);
-                
-                if (!res.ok) {
-                    statusBox.innerHTML = `❌ <b>API Error:</b> Server returned HTTP ${res.status}. Check your Vercel Environment Variables!`;
-                    return;
-                }
-                
-                const items = await res.json();
-                
-                if (!items || items.length === 0) {
-                    statusBox.innerHTML = `⚠️ <b>0 Photos Found!</b><br>The API works, but Notion returned an empty list <code>[]</code>.<br><br><b>Fix:</b> Check that your tag in Notion is spelled exactly <code>Inspirational Quotes</code> and that your image column is named <code>Files & Media</code>.`;
-                    return;
-                }
-                
-                statusBox.innerHTML = `✅ Found ${items.length} photos! Selecting one...`;
-                const selectedItem = items[Math.floor(Math.random() * items.length)];
-                
-                // Broadcast title to name.html
-                localStorage.setItem('shared_photo_name', selectedItem.title);
-                
-                statusBox.innerHTML = `⏳ 3. Downloading image from:<br><code style="font-size:11px;word-break:break-all;">${selectedItem.url}</code>`;
-                
-                img.src = selectedItem.url;
-                
-                img.onload = () => {
-                    statusBox.style.display = 'none'; // Hide status text
-                    img.style.display = 'block';      // Reveal photo!
-                };
-                
-                img.onerror = () => {
-                    statusBox.innerHTML = `❌ <b>Image Load Failed!</b><br>The image URL was found, but your browser refused to draw it.<br><br><b>Why:</b> If this is a direct Notion upload, AWS S3 is blocking the iframe embed.<br><b>Fix:</b> Try pasting a direct external image URL (like from Unsplash or Imgur) into your Notion database row instead!`;
-                };
+  const NOTION_TOKEN = process.env.NOTION_INTEGRATION_TOKEN;
+  const DATABASE_ID = process.env.NOTION_DATABASE_ID;
+  
+  // DYNAMIC TAG: Looks at your URL for a tag, defaults to "Inspirational Quotes"
+  const tagToFilter = req.query.tag || "Inspirational Quotes";
 
-            } catch (e) { 
-                statusBox.innerHTML = `❌ <b>Network Error:</b> ${e.message}`;
-            }
+  const notionUrl = `https://api.notion.com/v1/databases/${DATABASE_ID}/query`;
+
+  try {
+    const response = await fetch(notionUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${NOTION_TOKEN}`,
+        "Notion-Version": "2022-06-28", 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        filter: {
+          property: "Tags", 
+          multi_select: { contains: tagToFilter } 
         }
-        
-        window.onload = loadImg;
-    </script>
-</body>
-</html>
+      })
+    });
+
+    if (!response.ok) return res.status(response.status).json({ error: response.statusText });
+
+    const data = await response.json();
+    const results = data.results || [];
+
+    // EXTRACT TITLE & URL
+    const extractedData = results.map(page => {
+      const filesColumn = page.properties["Files & Media"]?.files;
+      if (!filesColumn || filesColumn.length === 0) return null;
+      const fileObj = filesColumn[0];
+      const url = fileObj?.external?.url || fileObj?.file?.url || fileObj?.url;
+      if (!url) return null;
+
+      const titleColumn = page.properties["Name"]?.title;
+      const title = (titleColumn && titleColumn.length > 0) ? titleColumn[0].plain_text : "Untitled";
+
+      return { url: url, title: title }; 
+    }).filter(Boolean);
+
+    return res.status(200).json(extractedData);
+
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
