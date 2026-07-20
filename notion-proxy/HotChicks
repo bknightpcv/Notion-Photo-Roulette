@@ -4,67 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Complete CSS Reset to remove all default browser borders and margins */
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            border: none;
-            outline: none;
-        }
-        
-        /* Force total transparency so Notion's background shows through */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body, html { 
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
+            width: 100%; height: 100%; overflow: hidden; 
             background-color: transparent !important; 
+            display: flex; justify-content: center; align-items: center;
         }
         
-        /* Image starts completely invisible (opacity: 0) and fades in smoothly */
         img { 
-            max-width: 100%; 
-            max-height: 100%; 
-            object-fit: cover; 
-            border-radius: 8px; /* Matches Notion's rounded corner style */
-            opacity: 0; 
-            transition: opacity 0.4s ease-in-out; 
-            display: block;
-            border: none;
+            max-width: 100%; max-height: 100%; object-fit: cover; 
+            border-radius: 8px; opacity: 0; transition: opacity 0.4s ease-in-out; 
         }
         
-        /* Class applied only after the image has completely downloaded */
-        .visible { 
-            opacity: 1; 
-        }
+        .visible { opacity: 1 !important; }
     </style>
 </head>
 <body>
+    
     <img id="random-image" alt="">
 
     <script>
-        // Keep your working relative API path!
-        const API_ENDPOINT = "/api/photos"; 
+        // Change the tag at the end of this URL to pull different categories
+        const API_ENDPOINT = "/api/photos?tag=Inspirational+Quotes"; 
 
         async function loadImg() {
             try {
                 const res = await fetch(API_ENDPOINT);
                 if (!res.ok) return;
                 
-                const urls = await res.json();
-                if (!urls || urls.length === 0) return;
+                const items = await res.json();
+                if (!items || items.length === 0) return;
                 
+                // Anti-Repeat Randomizer
+                let randomIndex = Math.floor(Math.random() * items.length);
+                const lastSeenUrl = localStorage.getItem('notion_roulette_last_seen');
+                
+                if (items.length > 1 && items[randomIndex].url === lastSeenUrl) {
+                    randomIndex = (randomIndex + 1) % items.length;
+                }
+                
+                const selectedItem = items[randomIndex];
+                
+                // Save the url for the anti-repeat logic next time
+                localStorage.setItem('notion_roulette_last_seen', selectedItem.url);
+
+                // BROADCAST THE TITLE for the name widget to hear
+                localStorage.setItem('shared_photo_name', selectedItem.title); 
+
+                // Inject and display the image
                 const img = document.getElementById('random-image');
-                img.src = urls[Math.floor(Math.random() * urls.length)];
-                
-                // Once the image file is fully downloaded, fade it into view
+                img.src = selectedItem.url;
                 img.onload = () => img.classList.add('visible');
-            } catch (e) { 
-                console.error("Widget load error:", e); 
-            }
+
+            } catch (e) { console.error("Widget load error:", e); }
         }
         
         window.onload = loadImg;
