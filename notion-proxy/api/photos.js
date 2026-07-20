@@ -9,7 +9,7 @@ module.exports = async (req, res) => {
   const DATABASE_ID = process.env.NOTION_DATABASE_ID;
   
   // DYNAMIC TAG: Looks at your URL for a tag, defaults to "Inspirational Quotes"
-  const tagToFilter = req.query.tag || "Inspirational Quotes";
+  const tagToFilter = req.query.tag || "Hot Chicks";
 
   const notionUrl = `https://api.notion.com/v1/databases/${DATABASE_ID}/query`;
 
