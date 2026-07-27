@@ -7,53 +7,48 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body, html { 
             width: 100%; height: 100%; overflow: hidden; 
-            background-color: #f5f5f5; display: flex; 
+            background-color: transparent; display: flex; 
             justify-content: center; align-items: center;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        #status-box {
-            padding: 20px; background: white; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
-            max-width: 80%; color: #333; font-size: 14px;
+        #error-box {
+            display: none; padding: 15px; background: #fff3f3; 
+            border: 1px solid #ffcdd2; border-radius: 6px; 
+            color: #c62828; font-family: sans-serif; font-size: 13px; 
+            text-align: center; max-width: 90%;
         }
         img { 
-            max-width: 100%; max-height: 100%; object-fit: cover; 
-            border-radius: 8px; display: none; /* Hidden until loaded */
+            width: 100%; height: 100%; object-fit: cover; 
+            border-radius: 8px; display: none; opacity: 0;
+            transition: opacity 0.5s ease-in-out;
         }
     </style>
 </head>
 <body>
-    
-    <div id="status-box">⏳ 1. Connecting to Vercel API...</div>
-    <img id="random-image" alt="">
+
+    <div id="error-box"></div>
+    <img id="random-image" alt="Notion Photo Roulette">
 
     <script>
-        // Change "Inspirational+Quotes" to match your Notion tag exactly
+        // Change tag query parameter here if desired
         const API_ENDPOINT = "/api/photos?tag=Hot+Chicks"; 
         
-        const statusBox = document.getElementById('status-box');
+        const errorBox = document.getElementById('error-box');
         const img = document.getElementById('random-image');
 
-        async function loadImg() {
+        async function loadPhotoRoulette() {
             try {
-                statusBox.innerHTML = "⏳ 2. Fetching photos from Notion API...";
                 const res = await fetch(API_ENDPOINT);
-                
-                if (!res.ok) {
-                    statusBox.innerHTML = `❌ <b>API Error:</b> Server returned HTTP ${res.status}. Check your Vercel Environment Variables!`;
-                    return;
-                }
+                if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
                 
                 const items = await res.json();
                 
                 if (!items || items.length === 0) {
-                    statusBox.innerHTML = `⚠️ <b>0 Photos Found!</b><br>The API works, but Notion returned an empty list <code>[]</code>.<br><br><b>Fix:</b> Check that your tag in Notion is spelled exactly <code>Inspirational Quotes</code> and that your image column is named <code>Files & Media</code>.`;
+                    errorBox.innerHTML = "<b>No photos found.</b> Check tag name or 'Files & Media' column.";
+                    errorBox.style.display = 'block';
                     return;
                 }
                 
-                statusBox.innerHTML = `✅ Found ${items.length} photos! Selecting one...`;
-                
-                // Anti-Repeat Randomizer
+                // Anti-Repeat Randomizer Logic
                 let randomIndex = Math.floor(Math.random() * items.length);
                 const lastSeenUrl = localStorage.getItem('notion_roulette_last_seen');
                 
@@ -63,28 +58,29 @@
                 
                 const selectedItem = items[randomIndex];
                 
+                // Save state for anti-repeat and cross-widget title broadcasting
                 localStorage.setItem('notion_roulette_last_seen', selectedItem.url);
                 localStorage.setItem('shared_photo_name', selectedItem.title);
                 
-                statusBox.innerHTML = `⏳ 3. Downloading image...`;
-                
+                // Set image source and reveal when loaded
                 img.src = selectedItem.url;
-                
                 img.onload = () => {
-                    statusBox.style.display = 'none'; // Hide status text
-                    img.style.display = 'block';      // Reveal photo!
+                    img.style.display = 'block';
+                    img.style.opacity = '1';
                 };
                 
                 img.onerror = () => {
-                    statusBox.innerHTML = `❌ <b>Image Load Failed!</b><br>The image URL was found, but your browser refused to draw it.<br><br><b>Why:</b> If this is a direct Notion upload, AWS S3 is blocking the iframe embed.<br><b>Fix:</b> Try pasting a direct external image URL (like from Unsplash or Imgur) into your Notion database row instead!`;
+                    errorBox.innerHTML = "<b>Image Load Error:</b> Browser blocked external render (Notion direct uploads expire via AWS S3). Use direct external image links.";
+                    errorBox.style.display = 'block';
                 };
 
-            } catch (e) { 
-                statusBox.innerHTML = `❌ <b>Network Error:</b> ${e.message}`;
+            } catch (err) {
+                errorBox.innerHTML = `<b>Connection Error:</b> ${err.message}`;
+                errorBox.style.display = 'block';
             }
         }
         
-        window.onload = loadImg;
+        window.onload = loadPhotoRoulette;
     </script>
 </body>
 </html>
