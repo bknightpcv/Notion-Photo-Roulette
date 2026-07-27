@@ -8,9 +8,8 @@ module.exports = async (req, res) => {
   const NOTION_TOKEN = process.env.NOTION_INTEGRATION_TOKEN;
   const DATABASE_ID = process.env.NOTION_DATABASE_ID;
   
-  // DYNAMIC TAG: Looks at your URL for a tag, defaults to "Inspirational Quotes"
+  // Tag filter lookup from URL query parameters (defaults to "Inspirational Quotes")
   const tagToFilter = req.query.tag || "Hot Chicks";
-
   const notionUrl = `https://api.notion.com/v1/databases/${DATABASE_ID}/query`;
 
   try {
@@ -34,7 +33,7 @@ module.exports = async (req, res) => {
     const data = await response.json();
     const results = data.results || [];
 
-    // EXTRACT TITLE & URL
+    // Map through Notion results to extract clean URLs and titles
     const extractedData = results.map(page => {
       const filesColumn = page.properties["Files & Media"]?.files;
       if (!filesColumn || filesColumn.length === 0) return null;
